@@ -20,6 +20,7 @@
     "audit:runtime-security": "npm --prefix backend run audit:runtime-security",
     "audit:commercial-launch": "npm --prefix backend run audit:commercial-launch",
     "audit:launch-ui": "npm run build && npx playwright install chromium && npx playwright test backend/scripts/audit-launch-ui.spec.js --reporter=line",
+    "audit:interaction-qa": "npm run build && npx playwright install chromium && npx playwright test backend/scripts/audit-interaction-qa.spec.js --reporter=line",
     "verify:ai": "npm --prefix backend run verify:ai",
     "preflight:production": "npm --prefix backend run preflight:production",
     "smoke:production": "npm --prefix backend run smoke:production",

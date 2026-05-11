@@ -40,6 +40,7 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
   const { addWrongQuestion } = useWrongQuestionStore()
   const [mode, setMode] = useState('select')
   const [userAnswer, setUserAnswer] = useState('')
+  const [uploadError, setUploadError] = useState('')
   const fileInputRef = useRef(null)
 
   const setFlowMode = (nextMode) => {
@@ -50,11 +51,13 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
   const resetFlow = () => {
     clearUpload()
     setUserAnswer('')
+    setUploadError('')
     setFlowMode('select')
   }
 
   const simulateOCR = async (imageData) => {
     setImage(imageData)
+    setUploadError('')
     setFlowMode('recognizing')
 
     const result = await apiPost('/uploads/recognize', { image: imageData }, () => ({
@@ -70,6 +73,11 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
         subject: 'math',
       },
     }))
+    if (!result?.recognizedText || !result?.question) {
+      setUploadError('图片识别暂时失败，请换一张清晰照片，或先用“手动输入”继续完成这道题。')
+      setFlowMode('select')
+      return
+    }
     setRecognizedText(result.recognizedText)
     setQuestion({
       ...result.question,
@@ -82,7 +90,20 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
   const handleImageUpload = (event) => {
     const file = event.target.files?.[0]
     if (!file) return
-    simulateOCR(URL.createObjectURL(file))
+    const reader = new FileReader()
+    reader.onload = () => {
+      const imageData = typeof reader.result === 'string' ? reader.result : ''
+      if (!imageData) {
+        setUploadError('图片读取失败，请重新选择照片。')
+        return
+      }
+      simulateOCR(imageData)
+    }
+    reader.onerror = () => {
+      setUploadError('图片读取失败，请重新选择照片。')
+    }
+    reader.readAsDataURL(file)
+    event.target.value = ''
   }
 
   const handleManualStart = () => {
@@ -249,7 +270,7 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
               <p className="mt-1 text-caption-1 text-neutral-500">从截图或照片中选择题目</p>
             </div>
           </div>
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+          <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="hidden" />
         </Card>
 
         <Card animate={false} onClick={() => setFlowMode('input')} className="bg-white">
@@ -264,6 +285,12 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
           </div>
         </Card>
       </div>
+
+      {uploadError && (
+        <div className="mt-4 rounded-card bg-red-50 p-4 text-subhead font-semibold text-red-700" role="alert">
+          {uploadError}
+        </div>
+      )}
 
       {uploadedQuestions.length > 0 && (
         <section className="mt-6">

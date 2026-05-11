@@ -12,6 +12,7 @@
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    scroll-padding-bottom: calc(124px + env(safe-area-inset-bottom));
   }
   
   body {
@@ -25,6 +26,7 @@
   input,
   textarea {
     font: inherit;
+    scroll-margin-bottom: calc(124px + env(safe-area-inset-bottom));
   }
   
   .safe-area-top {
@@ -39,6 +41,7 @@
 @layer components {
   .app-page {
     min-height: 100vh;
+    min-height: 100dvh;
     background:
       radial-gradient(circle at top left, rgba(20, 141, 138, 0.12), transparent 320px),
       radial-gradient(circle at top right, rgba(245, 158, 11, 0.1), transparent 360px),

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 
@@ -10,6 +10,20 @@ const Modal = ({
   showCloseButton = true,
   fullScreen = false,
 }) => {
+  useEffect(() => {
+    if (!isOpen) return undefined
+    const previousOverflow = document.body.style.overflow
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose?.()
+    }
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen, onClose])
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -30,10 +44,14 @@ const Modal = ({
           
           {/* Modal Content */}
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label={title || '弹窗'}
+            onClick={(event) => event.stopPropagation()}
             className={`modal-content absolute ${
               fullScreen 
                 ? 'inset-4 rounded-[14px]' 
-                : 'left-4 right-4 top-[20%] max-h-[70vh] overflow-auto'
+                : 'bottom-4 left-4 right-4 top-4 overflow-auto sm:bottom-auto sm:top-[20%] sm:max-h-[70vh]'
             } mx-auto max-w-[92vw] sm:max-w-[720px] lg:max-w-[860px]`}
             initial={fullScreen ? { scale: 0.95, opacity: 0 } : { y: 20, opacity: 0 }}
             animate={fullScreen ? { scale: 1, opacity: 1 } : { y: 0, opacity: 1 }}
