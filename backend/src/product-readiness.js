@@ -29,6 +29,13 @@ export const buildProductReadinessReport = (store) => {
   const packNameMap = new Map(questionPacks.map(pack => [normalizeName(pack.name), pack]))
   const knowledgePointNames = new Set(knowledgePoints.map(point => normalizeName(point.name)).filter(Boolean))
   const contentPurchaseIds = new Set(contentPurchases.map(item => String(item.id)))
+  const hasContentPurchaseForTransaction = (transaction) => contentPurchases.some((purchase) => (
+    normalizeName(purchase.user) === normalizeName(transaction.user)
+    && (
+      String(purchase.id) === String(transaction.relatedId)
+      || String(purchase.packId) === String(transaction.relatedId)
+    )
+  ))
 
   const nonPrimaryUsers = users.filter(user => !isPrimaryUser(user))
   const invalidLearningRecords = learningRecords.filter((record) => {
@@ -57,7 +64,7 @@ export const buildProductReadinessReport = (store) => {
   })
   const invalidPointTransactions = pointTransactions.filter((item) => {
     if (!userMap.has(normalizeName(item.user))) return true
-    if (item.action === 'content_purchase' && item.relatedId && !contentPurchaseIds.has(String(item.relatedId))) return true
+    if (item.action === 'content_purchase' && item.relatedId && !contentPurchaseIds.has(String(item.relatedId)) && !hasContentPurchaseForTransaction(item)) return true
     return false
   })
 
