@@ -16,6 +16,7 @@
 - `api/index.js`：Vercel Function 入口，复用后端 `requestHandler`。
 - `backend/src/server.js`：本地仍可 `listen`，Vercel 环境只导出 handler。
 - `.vercelignore`：排除本地密钥、测试产物、构建产物和依赖目录。
+- `ignoreCommand`：生产环境变量未配置前，默认忽略 Git 自动部署；设置 `ENABLE_VERCEL_AUTODEPLOY=true` 后才允许 Git push 自动发布。
 
 ## 已验证
 
@@ -47,6 +48,7 @@ Vercel 当前还没有任何项目环境变量。正式生产发布前必须在 
 
 ```text
 TIXIAOZHU_ENV=production
+ENABLE_VERCEL_AUTODEPLOY=true
 VITE_ENABLE_API_FALLBACK=false
 TIXIAOZHU_DATA_LAYER=postgres
 DATABASE_URL=<production-postgres-url>
