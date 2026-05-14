@@ -140,6 +140,12 @@ export const createStorePersistence = (store) => {
   let timer = null
   let activeWrite = null
   let queued = false
+  let dirty = false
+
+  const writeRetryCount = Number(process.env.TIXIAOZHU_STORE_WRITE_RETRIES || 2)
+  const writeRetryDelayMs = Number(process.env.TIXIAOZHU_STORE_WRITE_RETRY_DELAY_MS || 150)
+
+  const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
   const writeFileSnapshot = async () => {
     await fs.mkdir(path.dirname(STORE_DATA_FILE), { recursive: true })
@@ -148,7 +154,7 @@ export const createStorePersistence = (store) => {
     await fs.rename(tempFile, STORE_DATA_FILE)
   }
 
-  const writeDatabaseSnapshot = async () => {
+  const writeDatabaseSnapshotOnce = async () => {
     const pool = getDatabasePool()
     await ensureDatabaseTable(pool)
     await pool.query(
@@ -160,9 +166,26 @@ export const createStorePersistence = (store) => {
     )
   }
 
+  const writeDatabaseSnapshot = async () => {
+    let lastError = null
+    for (let attempt = 0; attempt <= writeRetryCount; attempt += 1) {
+      try {
+        await writeDatabaseSnapshotOnce()
+        return
+      } catch (error) {
+        lastError = error
+        if (attempt >= writeRetryCount) break
+        await wait(writeRetryDelayMs * (attempt + 1))
+      }
+    }
+    throw lastError
+  }
+
   const writeSnapshot = STORE_DATA_LAYER === 'postgres' ? writeDatabaseSnapshot : writeFileSnapshot
 
   const flush = async () => {
+    if (!dirty && !activeWrite && !timer) return
+
     if (timer) {
       clearTimeout(timer)
       timer = null
@@ -175,9 +198,12 @@ export const createStorePersistence = (store) => {
       queued = false
     }
 
+    dirty = false
     activeWrite = writeSnapshot()
       .catch((error) => {
-        console.error(`[store] failed to persist ${STORE_DATA_FILE}: ${error.message}`)
+        dirty = true
+        const target = STORE_DATA_LAYER === 'postgres' ? `${STORE_DATABASE_TABLE}:${STORE_DATABASE_ID}` : STORE_DATA_FILE
+        console.error(`[store] failed to persist ${target}: ${error.message}`)
       })
       .finally(() => {
         activeWrite = null
@@ -192,11 +218,13 @@ export const createStorePersistence = (store) => {
   }
 
   const schedule = () => {
+    dirty = true
     if (timer) return
     timer = setTimeout(() => {
       timer = null
       flush().catch((error) => {
-        console.error(`[store] failed to flush ${STORE_DATA_FILE}: ${error.message}`)
+        const target = STORE_DATA_LAYER === 'postgres' ? `${STORE_DATABASE_TABLE}:${STORE_DATABASE_ID}` : STORE_DATA_FILE
+        console.error(`[store] failed to flush ${target}: ${error.message}`)
       })
     }, 120)
   }
@@ -206,6 +234,7 @@ export const createStorePersistence = (store) => {
     dataFile: STORE_DATA_LAYER === 'file' ? STORE_DATA_FILE : null,
     databaseTable: STORE_DATA_LAYER === 'postgres' ? STORE_DATABASE_TABLE : null,
     flush,
+    pending: () => Boolean(dirty || timer || activeWrite || queued),
     schedule,
   }
 }

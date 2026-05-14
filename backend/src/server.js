@@ -104,7 +104,12 @@ const corsHeaders = (requestOrigin) => ({
   'Vary': 'Origin',
 })
 
-const json = (res, status, payload) => {
+const flushStoreBeforeResponse = async () => {
+  if (storePersistence.pending()) await storePersistence.flush()
+}
+
+const json = async (res, status, payload) => {
+  await flushStoreBeforeResponse()
   const body = JSON.stringify(payload)
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
