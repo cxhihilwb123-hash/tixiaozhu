@@ -1,5 +1,7 @@
 const PRIMARY_SUBJECTS = new Set(['数学', '语文', '英语'])
 const PRIMARY_GRADES = new Set(['一年级', '二年级', '三年级', '四年级', '五年级', '六年级'])
+const USER_GENERATED_ROUND_TYPES = new Set(['uploaded', 'wrong', 'custom', 'manual'])
+const UNCLASSIFIED_KNOWLEDGE_POINTS = new Set(['未归类知识点'])
 
 const countBy = (items, getKey) => items.reduce((result, item) => {
   const key = getKey(item) || '未标注'
@@ -12,6 +14,22 @@ const normalizeName = (value) => String(value || '').trim()
 const isPrimaryUser = (user) => PRIMARY_GRADES.has(user.grade) && PRIMARY_SUBJECTS.has(user.subject)
 
 const isPrimaryGeneration = (item) => PRIMARY_GRADES.has(item.grade) && PRIMARY_SUBJECTS.has(item.subject)
+
+const hasUserGeneratedPackId = (packId) => {
+  const value = String(packId || '')
+  return value.startsWith('upload-pack-') || value.startsWith('wrong-pack-') || value.startsWith('custom-pack-')
+}
+
+const isUserGeneratedLearningRecord = (record) => (
+  USER_GENERATED_ROUND_TYPES.has(String(record.roundType || ''))
+  || hasUserGeneratedPackId(record.packId)
+)
+
+const isUserGeneratedWrongQuestion = (item) => (
+  String(item.questionId || '').startsWith('upl-')
+  || String(item.id || '').includes('-upl-')
+  || UNCLASSIFIED_KNOWLEDGE_POINTS.has(normalizeName(item.knowledgePoint))
+)
 
 export const buildProductReadinessReport = (store) => {
   const users = Array.isArray(store.users) ? store.users : []
@@ -40,10 +58,10 @@ export const buildProductReadinessReport = (store) => {
   const nonPrimaryUsers = users.filter(user => !isPrimaryUser(user))
   const invalidLearningRecords = learningRecords.filter((record) => {
     const user = userMap.get(normalizeName(record.user))
-    const pack = packNameMap.get(normalizeName(record.pack))
+    const pack = packIdMap.get(String(record.packId)) || packNameMap.get(normalizeName(record.pack))
     return !user
-      || !pack
       || !PRIMARY_SUBJECTS.has(record.subject)
+      || (!pack && !isUserGeneratedLearningRecord(record))
       || (pack && record.subject && pack.subject !== record.subject)
       || (user && record.userId && Number(user.id) !== Number(record.userId))
   })
@@ -51,7 +69,7 @@ export const buildProductReadinessReport = (store) => {
     const user = userMap.get(normalizeName(item.user))
     return !user
       || !PRIMARY_SUBJECTS.has(item.subject)
-      || !knowledgePointNames.has(normalizeName(item.knowledgePoint))
+      || (!knowledgePointNames.has(normalizeName(item.knowledgePoint)) && !isUserGeneratedWrongQuestion(item))
   })
   const invalidAiGenerationHistory = aiGenerationHistory.filter(item => !isPrimaryGeneration(item))
   const invalidContentPurchases = contentPurchases.filter((item) => {
