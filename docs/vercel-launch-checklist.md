@@ -16,7 +16,7 @@
 - `api/index.js`：Vercel Function 入口，复用后端 `requestHandler`。
 - `backend/src/server.js`：本地仍可 `listen`，Vercel 环境只导出 handler。
 - `.vercelignore`：排除本地密钥、测试产物、构建产物和依赖目录。
-- `ignoreCommand`：生产环境变量未配置前，默认忽略 Git 自动部署；设置 `ENABLE_VERCEL_AUTODEPLOY=true` 后才允许 Git push 自动发布。
+- `ignoreCommand`：生产环境变量未配置前，默认忽略 Git 自动部署；当前已在 Production 设置 `ENABLE_VERCEL_AUTODEPLOY=true`，后续 Git push 到 `main` 会自动发布。
 
 ## 已验证
 
@@ -38,7 +38,8 @@ npx vercel build --yes
 - Vercel Blob 已创建并连接：`tixiaozhu-prod-assets`，store id `store_Y9pXWQqjEdKy3BUW`，private，`iad1`。
 - Neon 数据已导入并反向导出校验：`252` 题包、`6912` 题、`108` 知识点、`5` 用户。
 - Vercel Alerts 已启用项目生产口径：`VERCEL_ALERTS_ENABLED=true`，CLI 可见 `Default Alert Rule`。
-- 线上 smoke 已验证除 `/api/ready` 外的基础链路：健康检查、支付延期隐藏、学生强认证、后台登录、后台运营接口、学生端页面、后台页面均通过。
+- 线上 smoke 已验证基础链路：`/api/ready`、健康检查、支付延期隐藏、学生强认证、后台登录、后台运营接口、学生端页面、后台页面均通过。
+- Git 自动部署已打开：`ENABLE_VERCEL_AUTODEPLOY=true`。
 
 当前上线范围调整：
 
@@ -73,7 +74,7 @@ VERCEL_ALERTS_ENABLED=true
 # 可选：如果接入 Sentry，也可以继续设置 SENTRY_DSN=<sentry-dsn>
 ```
 
-生产数据库、Blob、监控、管理员密钥、学生会话密钥、DeepSeek AI 已配置到 Vercel Production。`ENABLE_VERCEL_AUTODEPLOY=true` 暂时不要开启，等支付和 OCR 延期口径的 `/api/ready`、`preflight:production`、`smoke:production` 全部通过后再打开。
+生产数据库、Blob、监控、管理员密钥、学生会话密钥、DeepSeek AI、支付延期和 OCR 延期口径已配置到 Vercel Production。支付和 OCR 延期口径下，`/api/ready`、`preflight:production`、`smoke:production` 已通过。
 
 部署 URL 确认后，还要补：
 
@@ -101,7 +102,7 @@ CORS_ALLOW_ORIGIN=https://<production-domain>
 # 1. 本轮 OCR 延期：生产环境隐藏拍照/相册识别入口。
 npx vercel env add OCR_LAUNCH_STRATEGY production --value deferred --yes --force --no-sensitive
 
-# 2. 所有 gate 通过后，打开 Git 自动部署。
+# 2. 所有 gate 通过后，打开 Git 自动部署；当前 Production 已设置。
 npx vercel env add ENABLE_VERCEL_AUTODEPLOY production --value true --yes --force
 ```
 
