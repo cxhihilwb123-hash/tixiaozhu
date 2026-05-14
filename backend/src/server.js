@@ -2358,31 +2358,104 @@ const renderQuestionPackPdfWithCups = async (pack) => {
   }
 }
 
-const renderPlainTextPdf = async (text, title = '导出') => {
-  await fs.access(CUPS_FILTER_PATH)
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tixiaozhu-pdf-'))
-  const textPath = path.join(tempDir, `${safeFileName(title)}.txt`)
+const encodePdfHexText = (text) => {
+  const bytes = []
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index)
+    bytes.push((code >> 8) & 0xff, code & 0xff)
+  }
+  return Buffer.from(bytes).toString('hex').toUpperCase()
+}
 
+const wrapPdfLine = (line, maxLength = 42) => {
+  if (line.length <= maxLength) return [line]
+  const chunks = []
+  for (let index = 0; index < line.length; index += maxLength) {
+    chunks.push(line.slice(index, index + maxLength))
+  }
+  return chunks
+}
+
+const renderTextPdfFallback = (text, title = '导出') => {
+  const sourceLines = [title, '', ...String(text || '').split(/\r?\n/)]
+  const lines = sourceLines.flatMap(line => wrapPdfLine(line.replace(/\t/g, '  ')))
+  const linesPerPage = 42
+  const pageLines = []
+  for (let index = 0; index < lines.length; index += linesPerPage) {
+    pageLines.push(lines.slice(index, index + linesPerPage))
+  }
+  if (pageLines.length === 0) pageLines.push([''])
+
+  const objects = []
+  const addObject = (body) => {
+    objects.push(body)
+    return objects.length
+  }
+
+  const catalogId = addObject('CATALOG')
+  const pagesId = addObject('PAGES')
+  const fontDescriptorId = addObject('<< /Type /FontDescriptor /FontName /STSong-Light /Flags 6 /FontBBox [0 -200 1000 900] /ItalicAngle 0 /Ascent 880 /Descent -120 /CapHeight 700 /StemV 80 >>')
+  const cidFontId = addObject(`<< /Type /Font /Subtype /CIDFontType0 /BaseFont /STSong-Light /CIDSystemInfo << /Registry (Adobe) /Ordering (GB1) /Supplement 2 >> /FontDescriptor ${fontDescriptorId} 0 R >>`)
+  const fontId = addObject(`<< /Type /Font /Subtype /Type0 /BaseFont /STSong-Light /Encoding /UniGB-UCS2-H /DescendantFonts [${cidFontId} 0 R] >>`)
+  const pageIds = []
+
+  pageLines.forEach((page) => {
+    const textOps = page
+      .map(line => `<${encodePdfHexText(line || ' ')}> Tj T*`)
+      .join('\n')
+    const stream = `BT\n/F1 11 Tf\n14 TL\n50 790 Td\n${textOps}\nET`
+    const contentId = addObject(`<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`)
+    const pageId = addObject(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`)
+    pageIds.push(pageId)
+  })
+
+  objects[catalogId - 1] = `<< /Type /Catalog /Pages ${pagesId} 0 R >>`
+  objects[pagesId - 1] = `<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`
+
+  let pdf = '%PDF-1.4\n'
+  const offsets = [0]
+  objects.forEach((body, index) => {
+    offsets.push(Buffer.byteLength(pdf, 'binary'))
+    pdf += `${index + 1} 0 obj\n${body}\nendobj\n`
+  })
+  const xrefOffset = Buffer.byteLength(pdf, 'binary')
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`
+  offsets.slice(1).forEach(offset => {
+    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`
+  })
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`
+  return Buffer.from(pdf, 'binary')
+}
+
+const renderPlainTextPdf = async (text, title = '导出') => {
   try {
-    await fs.writeFile(textPath, text, 'utf8')
-    const { stdout } = await execFileAsync(CUPS_FILTER_PATH, [
-      '-i',
-      'text/plain',
-      '-m',
-      'application/pdf',
-      textPath,
-    ], {
-      encoding: 'buffer',
-      env: { ...process.env, LANG: 'zh_CN.UTF-8' },
-      maxBuffer: 20 * 1024 * 1024,
-      timeout: 10000,
-    })
-    if (!Buffer.isBuffer(stdout) || stdout.subarray(0, 4).toString('utf8') !== '%PDF') {
-      throw new Error('cupsfilter did not return a PDF')
+    await fs.access(CUPS_FILTER_PATH)
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tixiaozhu-pdf-'))
+    const textPath = path.join(tempDir, `${safeFileName(title)}.txt`)
+
+    try {
+      await fs.writeFile(textPath, text, 'utf8')
+      const { stdout } = await execFileAsync(CUPS_FILTER_PATH, [
+        '-i',
+        'text/plain',
+        '-m',
+        'application/pdf',
+        textPath,
+      ], {
+        encoding: 'buffer',
+        env: { ...process.env, LANG: 'zh_CN.UTF-8' },
+        maxBuffer: 20 * 1024 * 1024,
+        timeout: 10000,
+      })
+      if (!Buffer.isBuffer(stdout) || stdout.subarray(0, 4).toString('utf8') !== '%PDF') {
+        throw new Error('cupsfilter did not return a PDF')
+      }
+      return stdout
+    } finally {
+      fs.rm(tempDir, { recursive: true, force: true }).catch(() => {})
     }
-    return stdout
-  } finally {
-    fs.rm(tempDir, { recursive: true, force: true }).catch(() => {})
+  } catch {
+    return renderTextPdfFallback(text, title)
   }
 }
 
@@ -2415,7 +2488,11 @@ const renderQuestionPackPdf = async (pack, user) => {
   try {
     return await renderQuestionPackPdfWithCups(pack)
   } catch {
-    return renderQuestionPackPdfWithChrome(pack, user)
+    try {
+      return await renderQuestionPackPdfWithChrome(pack, user)
+    } catch {
+      return renderTextPdfFallback(buildQuestionPackPlainText(pack), pack.name)
+    }
   }
 }
 
@@ -3198,7 +3275,7 @@ const favoriteQuestion = (body) => {
   return { favorite, alreadyFavorited: false }
 }
 
-const server = http.createServer(async (req, res) => {
+export const requestHandler = async (req, res) => {
   res.__requestOrigin = req.headers.origin || ''
   if (req.method === 'OPTIONS') return json(res, 204, {})
 
@@ -3615,31 +3692,36 @@ const server = http.createServer(async (req, res) => {
   } catch (error) {
     return json(res, error.status || 500, { ok: false, error: error.message })
   }
-})
-
-server.listen(PORT, HOST, () => {
-  console.log(`Tixiaozhu backend listening on http://${HOST}:${PORT}`)
-})
-
-let closing = false
-const shutdown = async (signal) => {
-  if (closing) return
-  closing = true
-  try {
-    await storePersistence.flush()
-  } catch (error) {
-    console.error(`[store] failed to flush during ${signal}: ${error.message}`)
-  }
-  server.close(() => {
-    process.exit(0)
-  })
-  setTimeout(() => process.exit(0), 800).unref()
 }
 
-process.on('SIGINT', () => {
-  shutdown('SIGINT').catch(() => process.exit(1))
-})
+const server = http.createServer(requestHandler)
+const shouldListen = process.env.VERCEL !== '1'
 
-process.on('SIGTERM', () => {
-  shutdown('SIGTERM').catch(() => process.exit(1))
-})
+if (shouldListen) {
+  server.listen(PORT, HOST, () => {
+    console.log(`Tixiaozhu backend listening on http://${HOST}:${PORT}`)
+  })
+
+  let closing = false
+  const shutdown = async (signal) => {
+    if (closing) return
+    closing = true
+    try {
+      await storePersistence.flush()
+    } catch (error) {
+      console.error(`[store] failed to flush during ${signal}: ${error.message}`)
+    }
+    server.close(() => {
+      process.exit(0)
+    })
+    setTimeout(() => process.exit(0), 800).unref()
+  }
+
+  process.on('SIGINT', () => {
+    shutdown('SIGINT').catch(() => process.exit(1))
+  })
+
+  process.on('SIGTERM', () => {
+    shutdown('SIGTERM').catch(() => process.exit(1))
+  })
+}
