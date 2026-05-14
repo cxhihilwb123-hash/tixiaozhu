@@ -273,7 +273,7 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
       <div className="student-card-grid">
         {photoRecognitionVisible && (
           <>
-            <Card animate={false} onClick={() => simulateOCR('mock-camera-image')} className="bg-white">
+            <Card animate={false} onClick={() => simulateOCR('mock-camera-image')} aria-label="拍照识别" className="bg-white">
               <div className="flex items-center gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-50 text-primary-800">
                   <Camera size={23} />
@@ -285,7 +285,7 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
               </div>
             </Card>
 
-            <Card animate={false} onClick={() => fileInputRef.current?.click()} className="bg-white">
+            <Card animate={false} onClick={() => fileInputRef.current?.click()} aria-label="相册上传" className="bg-white">
               <div className="flex items-center gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-50 text-green-700">
                   <Image size={23} />
@@ -300,7 +300,7 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
           </>
         )}
 
-        <Card animate={false} onClick={() => setFlowMode('input')} className="bg-white">
+        <Card animate={false} onClick={() => setFlowMode('input')} aria-label="手动输入" className="bg-white">
           <div className="flex items-center gap-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-700">
               <Type size={23} />

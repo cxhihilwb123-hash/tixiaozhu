@@ -360,7 +360,7 @@ const PracticeCenterPage = ({ onStartPractice, onOpenQuestionStore }) => {
       {filteredUploadedQuestions.length === 0 && (
         <div className="surface-line rounded-card bg-white p-8 text-center">
           <div className="mb-2 text-title-2 text-neutral-900">拍题本还没有题</div>
-          <div className="text-subhead text-neutral-500">拍照识别并完成后，会沉淀到这里。</div>
+          <div className="text-subhead text-neutral-500">手动输入并完成后，会沉淀到这里。</div>
         </div>
       )}
     </section>
