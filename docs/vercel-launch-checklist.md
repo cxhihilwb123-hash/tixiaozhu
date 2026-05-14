@@ -34,13 +34,17 @@ npx vercel build --yes
 - Vercel handler 模式下 `/api/health`、`/`、`/admin/` 可返回。
 - Vercel 远端项目已创建并连接 GitHub。
 - Vercel 生产别名已部署到 `https://tixiaozhu.vercel.app`，当前用于链路验证，不代表正式 Go。
+- Neon Postgres 已创建并连接：`tixiaozhu-postgres`，resource id `store_s4sfrkzkbIbH9w1m`。
+- Vercel Blob 已创建并连接：`tixiaozhu-prod-assets`，store id `store_Y9pXWQqjEdKy3BUW`，private，`iad1`。
+- Neon 数据已导入并反向导出校验：`252` 题包、`6912` 题、`108` 知识点、`5` 用户。
+- Vercel Alerts 已启用项目生产口径：`VERCEL_ALERTS_ENABLED=true`，CLI 可见 `Default Alert Rule`。
 - 线上 smoke 已验证除 `/api/ready` 外的基础链路：健康检查、支付延期隐藏、学生强认证、后台登录、后台运营接口、学生端页面、后台页面均通过。
 
 当前线上阻塞：
 
 - `/api/ready` 返回 503。
-- 详情显示 `dataLayer=file`，`commercial_launch_gate=blocked`。
-- 这说明 Vercel 部署链路已打通，但还没有接入真实生产数据库、OCR、对象存储和监控。
+- 详情显示 `dataLayer=postgres`，但 `commercial_launch_gate=needs_hardening`。
+- 当前唯一剩余门禁是 `OCR_API_URL`：现有 DeepSeek `deepseek-v4-flash` 已验证不支持 `image_url`，不能作为拍照识别服务。
 
 ## 仍需配置的生产环境变量
 
@@ -48,7 +52,6 @@ Vercel 当前还没有任何项目环境变量。正式生产发布前必须在 
 
 ```text
 TIXIAOZHU_ENV=production
-ENABLE_VERCEL_AUTODEPLOY=true
 VITE_ENABLE_API_FALLBACK=false
 TIXIAOZHU_DATA_LAYER=postgres
 DATABASE_URL=<production-postgres-url>
@@ -64,13 +67,12 @@ AI_API_BASE=https://api.deepseek.com
 AI_API_KEY=<production-ai-key>
 AI_MODEL=deepseek-v4-flash
 OCR_API_URL=<production-recognition-endpoint>
-OBJECT_STORAGE_BUCKET=<production-bucket>
-OBJECT_STORAGE_REGION=<region>
-OBJECT_STORAGE_ENDPOINT=<storage-endpoint>
-OBJECT_STORAGE_ACCESS_KEY=<storage-access-key>
-OBJECT_STORAGE_SECRET_KEY=<storage-secret-key>
-SENTRY_DSN=<sentry-dsn>
+BLOB_READ_WRITE_TOKEN=<vercel-blob-read-write-token>
+VERCEL_ALERTS_ENABLED=true
+# 可选：如果接入 Sentry，也可以继续设置 SENTRY_DSN=<sentry-dsn>
 ```
+
+生产数据库、Blob、监控、管理员密钥、学生会话密钥、DeepSeek AI 已配置到 Vercel Production。`ENABLE_VERCEL_AUTODEPLOY=true` 暂时不要开启，等 OCR 接入并且 `/api/ready` 返回 200 后再打开。
 
 部署 URL 确认后，还要补：
 
@@ -88,6 +90,18 @@ CORS_ALLOW_ORIGIN=https://<production-domain>
 - 不要用 `.env.production.example` 的占位值冒充生产配置。
 - 不要在正式生产设置 `ALLOW_BLOCKED_PRODUCTION_START=true`。
 - 不要在缺 PostgreSQL、OCR、对象存储或监控时把商业上线状态改成 Go。
+
+## 剩余资源接入建议
+
+推荐优先接：
+
+```bash
+# 1. OCR：配置可接收图片识别请求的正式视觉/识别接口。
+npx vercel env add OCR_API_URL production
+
+# 2. OCR 接入后，打开 Git 自动部署。
+npx vercel env add ENABLE_VERCEL_AUTODEPLOY production --value true --yes --force
+```
 
 ## 最终上线门禁
 

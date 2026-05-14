@@ -18,6 +18,7 @@ const sensitiveEnvNames = [
   'AI_API_KEY',
   'AI_MODEL',
   'OCR_API_URL',
+  'BLOB_READ_WRITE_TOKEN',
   'OBJECT_STORAGE_BUCKET',
   'OBJECT_STORAGE_ENDPOINT',
   'OBJECT_STORAGE_ACCESS_KEY',
@@ -177,6 +178,11 @@ await check('OCR service configuration', async () => (
 ))
 
 await check('object storage configuration', async () => {
+  if (hasValue(process.env.BLOB_READ_WRITE_TOKEN)) {
+    assertNotPlaceholder('BLOB_READ_WRITE_TOKEN', process.env.BLOB_READ_WRITE_TOKEN)
+    return { provider: 'vercel_blob', tokenConfigured: true }
+  }
+
   const bucket = process.env.OBJECT_STORAGE_BUCKET || process.env.S3_BUCKET || process.env.COS_BUCKET
   if (!hasValue(bucket)) throw new Error('OBJECT_STORAGE_BUCKET / S3_BUCKET / COS_BUCKET is required')
   assertNotPlaceholder('object storage bucket', bucket)
@@ -199,6 +205,9 @@ await check('object storage configuration', async () => {
 })
 
 await check('monitoring configuration', async () => {
+  if (process.env.VERCEL_ALERTS_ENABLED === 'true') {
+    return { provider: 'vercel_alerts' }
+  }
   if (hasValue(process.env.SENTRY_DSN)) {
     const dsn = validateUrl('SENTRY_DSN', process.env.SENTRY_DSN)
     return { provider: 'sentry', host: dsn.host }

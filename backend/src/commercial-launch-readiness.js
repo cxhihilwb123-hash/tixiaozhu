@@ -46,8 +46,8 @@ export const buildCommercialLaunchReadinessReport = (store, env = process.env) =
   const hasProductionAiService = hasValue(env.AI_API_KEY) && hasValue(env.AI_API_BASE) && hasValue(env.AI_MODEL)
   const hasProductionOcrService = hasValue(env.OCR_API_URL)
   const aiProvider = hasProductionAiService ? (env.AI_PROVIDER || 'production-configured') : configuredAiProvider
-  const hasObjectStorage = hasValue(env.OBJECT_STORAGE_BUCKET) || hasValue(env.S3_BUCKET) || hasValue(env.COS_BUCKET)
-  const hasMonitoring = hasValue(env.SENTRY_DSN) || hasValue(env.LOG_DRAIN_URL) || hasValue(env.OBSERVABILITY_ENDPOINT)
+  const hasObjectStorage = hasValue(env.BLOB_READ_WRITE_TOKEN) || hasValue(env.OBJECT_STORAGE_BUCKET) || hasValue(env.S3_BUCKET) || hasValue(env.COS_BUCKET)
+  const hasMonitoring = env.VERCEL_ALERTS_ENABLED === 'true' || hasValue(env.SENTRY_DSN) || hasValue(env.LOG_DRAIN_URL) || hasValue(env.OBSERVABILITY_ENDPOINT)
   const explicitFrontendUrl = hasValue(env.FRONTEND_URL)
   const explicitAdminUrl = hasValue(env.ADMIN_URL)
   const paymentDeferredSafely = paymentDeferred && settings.paymentFeatureVisible !== true && paymentMode === 'test'
