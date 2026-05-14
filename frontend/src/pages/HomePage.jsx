@@ -103,7 +103,7 @@ const HomePage = ({ onStartPractice, onContinuePractice, onStartWrongPractice, o
     },
     {
       title: '拍题批改',
-      desc: '识别题目后直接作答',
+      desc: '输入题目后直接作答',
       icon: ScanLine,
       tone: 'bg-primary-50 text-primary-800',
       onClick: onOpenCapture,

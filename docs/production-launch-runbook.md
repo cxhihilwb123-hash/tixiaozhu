@@ -1,14 +1,14 @@
-# 题小助生产上线 Runbook（支付延期版）
+# 题小助生产上线 Runbook（支付与 OCR 延期版）
 
-本 Runbook 适用于当前商业上线策略：先发布非支付版本，正式支付延期上线。
+本 Runbook 适用于当前商业上线策略：先发布非支付、手动输入版本，正式支付和拍照识别延期上线。
 
 ## 1. 上线范围
 
 本轮上线包含：
 
-- 学生端：题库、练习、拍题、错题、收藏、学习记录、家长报告。
+- 学生端：题库、练习、手动输入拍题、错题、收藏、学习记录、家长报告。
 - 后台端：题库运营、用户与学习记录查看、内容审核、系统设置、商业上线审计。
-- 后端：生产数据库、学生强认证、后台强认证、AI/OCR、PDF/导出、监控告警。
+- 后端：生产数据库、学生强认证、后台强认证、AI、PDF/导出、监控告警。
 
 本轮不包含：
 
@@ -16,6 +16,7 @@
 - 积分充值。
 - 会员购买。
 - 支付回调、退款、对账。
+- 拍照/相册 OCR 识别。
 
 ## 2. 必填生产环境变量
 
@@ -54,7 +55,8 @@ AI_PROVIDER=production-configured
 AI_API_BASE=https://api.deepseek.com
 AI_API_KEY=replace-with-deepseek-api-key
 AI_MODEL=deepseek-v4-flash
-OCR_API_URL=https://ocr-provider.example.com/recognize
+OCR_LAUNCH_STRATEGY=deferred
+# OCR_API_URL=https://ocr-provider.example.com/recognize # 仅 OCR_LAUNCH_STRATEGY=production 时需要
 
 OBJECT_STORAGE_BUCKET=tixiaozhu-prod-assets
 OBJECT_STORAGE_REGION=replace-with-region
@@ -98,8 +100,8 @@ npm run build
 - `audit:production-build` 构建学生端和后台端，并确认生产包没有本地 API、测试支付、默认账号、旧演示题包/订单/收入文案或 source map 残留。
 - `audit:runtime-security` 自动启动隔离后端，验证匿名学生数据被拒绝、学生数据按账号隔离、未购买积分题包无法读题、支付延期入口关闭、后台运营接口需要管理员 token。
 - `audit:commercial-launch` 返回 `readiness: launch_ready`。
-- `audit:commercial-launch` 可以有 `deferredItems`，但只能是正式支付延期。
-- `preflight:production` 能连通 PostgreSQL，确认强认证、支付延期、AI/OCR、对象存储和监控配置。
+- `audit:commercial-launch` 可以有 `deferredItems`，但只能是正式支付和拍照识别延期。
+- `preflight:production` 能连通 PostgreSQL，确认强认证、支付延期、OCR 延期、AI、对象存储和监控配置。
 - `preflight:production` 会拒绝 `replace-with-*`、`example.com`、`changeme`、`placeholder` 等占位配置；`.env.production.example` 只能作为模板，不能直接作为上线环境。
 - 三端 `npm audit --omit=dev` 无生产依赖漏洞。
 - `npm run build` 成功。
@@ -120,7 +122,7 @@ npm run verify:ai
 PREFLIGHT_PING_EXTERNALS=true npm --prefix backend run preflight:production
 ```
 
-默认不 ping 外部服务，避免对 AI/OCR/对象存储供应商产生无意义请求；开启后脚本会用 `HEAD` 请求验证端点可达性。
+默认不 ping 外部服务，避免对 AI/OCR/对象存储供应商产生无意义请求；开启后脚本会用 `HEAD` 请求验证端点可达性。`OCR_LAUNCH_STRATEGY=deferred` 时不会要求 `OCR_API_URL`。
 
 ## 3.1 容器构建
 
@@ -193,7 +195,8 @@ npm --prefix backend run smoke:production
 - 学生 A 能看到学生 B 的练习、错题、收藏或拍题数据。
 - 后台默认账号可登录。
 - 支付延期模式下出现模拟支付成功或积分充值成功。
-- AI/OCR 大面积失败且没有降级提示。
+- AI 大面积失败且没有降级提示。
+- OCR 延期模式下拍照/相册识别入口重新暴露给生产用户。
 
 ## 5.1 备份与恢复
 

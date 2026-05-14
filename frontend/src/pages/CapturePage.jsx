@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   BookPlus,
@@ -18,7 +18,7 @@ import {
 import Button from '../components/Button'
 import Card from '../components/Card'
 import { useUploadStore, useUserStore, useWrongQuestionStore } from '../stores'
-import { apiPost } from '../utils/api'
+import { apiGet, apiPost } from '../utils/api'
 
 const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
   const {
@@ -41,7 +41,26 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
   const [mode, setMode] = useState('select')
   const [userAnswer, setUserAnswer] = useState('')
   const [uploadError, setUploadError] = useState('')
+  const [recognitionConfig, setRecognitionConfig] = useState({
+    visible: !import.meta.env.PROD,
+    recognitionLaunchStrategy: import.meta.env.PROD ? 'deferred' : 'development',
+  })
   const fileInputRef = useRef(null)
+  const photoRecognitionVisible = recognitionConfig.visible !== false
+  const flowSteps = photoRecognitionVisible ? ['上传', '确认', '作答', '批改'] : ['输入', '作答', '批改']
+
+  useEffect(() => {
+    let active = true
+    apiGet('/recognition/config', {
+      visible: !import.meta.env.PROD,
+      recognitionLaunchStrategy: import.meta.env.PROD ? 'deferred' : 'development',
+    }).then((config) => {
+      if (active && config) setRecognitionConfig(config)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
 
   const setFlowMode = (nextMode) => {
     setMode(nextMode)
@@ -56,6 +75,10 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
   }
 
   const simulateOCR = async (imageData) => {
+    if (!photoRecognitionVisible) {
+      setUploadError('拍照识别本轮暂未开放，请先用“手动输入”完成这道题。')
+      return
+    }
     setImage(imageData)
     setUploadError('')
     setFlowMode('recognizing')
@@ -226,19 +249,19 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
       <header className="mb-7">
         <div className="page-kicker mb-2">拍题批改</div>
         <h1 className="mb-3 text-display text-neutral-900">把一道题变成可练习任务</h1>
-        <p className="text-body text-neutral-500">上传、确认、作答、批改，四步完成。</p>
+        <p className="text-body text-neutral-500">{photoRecognitionVisible ? '上传、确认、作答、批改，四步完成。' : '输入、作答、批改，三步完成。'}</p>
       </header>
 
       <section className="mb-6 rounded-card bg-neutral-900 p-5 text-white">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-caption-1 text-white/60">当前流程</div>
-            <h2 className="mt-1 text-title-1">识别后先确认题目</h2>
+            <h2 className="mt-1 text-title-1">{photoRecognitionVisible ? '识别后先确认题目' : '手动输入后直接练习'}</h2>
           </div>
           <ScanLine size={28} className="text-primary-200" />
         </div>
-        <div className="grid grid-cols-2 gap-2 text-center text-caption-1 text-white/72 sm:grid-cols-4">
-          {['上传', '确认', '作答', '批改'].map((step, index) => (
+        <div className={`grid gap-2 text-center text-caption-1 text-white/72 ${photoRecognitionVisible ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
+          {flowSteps.map((step, index) => (
             <div key={step} className="rounded-card bg-white/10 py-3">
               <div className="mb-1 text-title-3 text-white">{index + 1}</div>
               {step}
@@ -248,30 +271,34 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
       </section>
 
       <div className="student-card-grid">
-        <Card animate={false} onClick={() => simulateOCR('mock-camera-image')} className="bg-white">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-50 text-primary-800">
-              <Camera size={23} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h3 className="text-title-2 text-neutral-900">拍照识别</h3>
-              <p className="mt-1 text-caption-1 text-neutral-500">适合纸质作业、练习册题目</p>
-            </div>
-          </div>
-        </Card>
+        {photoRecognitionVisible && (
+          <>
+            <Card animate={false} onClick={() => simulateOCR('mock-camera-image')} className="bg-white">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-50 text-primary-800">
+                  <Camera size={23} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-title-2 text-neutral-900">拍照识别</h3>
+                  <p className="mt-1 text-caption-1 text-neutral-500">适合纸质作业、练习册题目</p>
+                </div>
+              </div>
+            </Card>
 
-        <Card animate={false} onClick={() => fileInputRef.current?.click()} className="bg-white">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-50 text-green-700">
-              <Image size={23} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h3 className="text-title-2 text-neutral-900">相册上传</h3>
-              <p className="mt-1 text-caption-1 text-neutral-500">从截图或照片中选择题目</p>
-            </div>
-          </div>
-          <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="hidden" />
-        </Card>
+            <Card animate={false} onClick={() => fileInputRef.current?.click()} className="bg-white">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-50 text-green-700">
+                  <Image size={23} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-title-2 text-neutral-900">相册上传</h3>
+                  <p className="mt-1 text-caption-1 text-neutral-500">从截图或照片中选择题目</p>
+                </div>
+              </div>
+              <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="hidden" />
+            </Card>
+          </>
+        )}
 
         <Card animate={false} onClick={() => setFlowMode('input')} className="bg-white">
           <div className="flex items-center gap-4">

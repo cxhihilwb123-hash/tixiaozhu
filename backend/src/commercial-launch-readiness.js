@@ -24,6 +24,12 @@ const normalizePaymentLaunchStrategy = (settings, env) => {
   return settings.paymentFeatureVisible ? 'production' : 'deferred'
 }
 
+const normalizeOcrLaunchStrategy = (env) => {
+  const explicit = String(env.OCR_LAUNCH_STRATEGY || env.RECOGNITION_LAUNCH_STRATEGY || '').trim()
+  if (['production', 'deferred'].includes(explicit)) return explicit
+  return hasValue(env.OCR_API_URL) ? 'production' : 'deferred'
+}
+
 export const buildCommercialLaunchReadinessReport = (store, env = process.env) => {
   const settings = store.settings || {}
   const adminUsername = env.ADMIN_USERNAME || settings.adminUsername || DEFAULT_ADMIN_USERNAME
@@ -33,6 +39,8 @@ export const buildCommercialLaunchReadinessReport = (store, env = process.env) =
   const requireStudentAuth = env.REQUIRE_STUDENT_AUTH === 'true' || env.TIXIAOZHU_ENV === 'production' || env.NODE_ENV === 'production'
   const paymentLaunchStrategy = normalizePaymentLaunchStrategy(settings, env)
   const paymentDeferred = paymentLaunchStrategy === 'deferred'
+  const ocrLaunchStrategy = normalizeOcrLaunchStrategy(env)
+  const ocrDeferred = ocrLaunchStrategy === 'deferred'
   const paymentMode = settings.paymentMode || 'test'
   const configuredAiProvider = env.AI_PROVIDER || settings.aiProvider || 'mock-compatible'
   const dataLayer = env.TIXIAOZHU_DATA_LAYER || (hasValue(env.DATABASE_URL) || hasValue(env.TIXIAOZHU_DATABASE_URL) ? 'postgres' : 'file')
@@ -57,6 +65,11 @@ export const buildCommercialLaunchReadinessReport = (store, env = process.env) =
       title: '正式支付延期上线',
       action: '生产环境先关闭前台支付入口和模拟支付确认；后续单独接入正式商户、回调验签、退款和对账。',
       detail: '支付不作为本轮上线范围，但不能把测试支付能力暴露给真实用户。',
+    } : null,
+    ocrDeferred ? {
+      title: '拍照识别延期上线',
+      action: '本轮先隐藏生产环境拍照/相册识别入口，保留手动输入、AI 批改、错题和题库链路；后续单独接入正式 OCR/视觉识别服务。',
+      detail: '拍照识别不作为本轮上线范围，但不能用 mock 或不支持图片的模型伪装正式能力。',
     } : null,
   ].filter(Boolean)
 
@@ -109,11 +122,17 @@ export const buildCommercialLaunchReadinessReport = (store, env = process.env) =
       '上线前必须设置 PAYMENT_WEBHOOK_SECRET，并在支付平台回调中发送 X-Payment-Signature。',
       '缺少回调验签会让支付通知无法安全进入订单状态机。'
     ) : null,
-    (!hasProductionAiService || !hasProductionOcrService) ? buildIssue(
+    !hasProductionAiService ? buildIssue(
       'medium',
-      'AI/OCR 仍是测试服务口径',
-      '配置正式 AI 出题服务 AI_API_KEY / AI_API_BASE / AI_MODEL，并配置 OCR_API_URL。',
-      `AI=${hasProductionAiService ? 'configured' : 'missing'}，OCR=${hasProductionOcrService ? 'configured' : 'missing'}。`
+      'AI 仍是测试服务口径',
+      '配置正式 AI 出题服务 AI_API_KEY / AI_API_BASE / AI_MODEL。',
+      '缺少正式 AI 生成服务配置。'
+    ) : null,
+    (!ocrDeferred && !hasProductionOcrService) ? buildIssue(
+      'medium',
+      'OCR 仍是测试服务口径',
+      '配置正式 OCR_API_URL，或显式设置 OCR_LAUNCH_STRATEGY=deferred 并隐藏拍照识别入口。',
+      `OCR launch strategy=${ocrLaunchStrategy}，OCR=${hasProductionOcrService ? 'configured' : 'missing'}。`
     ) : null,
     !hasObjectStorage ? buildIssue(
       'medium',
@@ -160,6 +179,8 @@ export const buildCommercialLaunchReadinessReport = (store, env = process.env) =
       requireStudentAuth,
       paymentLaunchStrategy,
       paymentDeferred,
+      ocrLaunchStrategy,
+      ocrDeferred,
       hasPaymentWebhookSecret,
       hasProductionAiService,
       hasProductionOcrService,

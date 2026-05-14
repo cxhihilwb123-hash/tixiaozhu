@@ -40,11 +40,11 @@ npx vercel build --yes
 - Vercel Alerts 已启用项目生产口径：`VERCEL_ALERTS_ENABLED=true`，CLI 可见 `Default Alert Rule`。
 - 线上 smoke 已验证除 `/api/ready` 外的基础链路：健康检查、支付延期隐藏、学生强认证、后台登录、后台运营接口、学生端页面、后台页面均通过。
 
-当前线上阻塞：
+当前上线范围调整：
 
-- `/api/ready` 返回 503。
-- 详情显示 `dataLayer=postgres`，但 `commercial_launch_gate=needs_hardening`。
-- 当前唯一剩余门禁是 `OCR_API_URL`：现有 DeepSeek `deepseek-v4-flash` 已验证不支持 `image_url`，不能作为拍照识别服务。
+- 本轮先上线“手动输入 + AI 批改 + 题库/错题/后台运营”版本。
+- 正式支付继续延期：`PAYMENT_LAUNCH_STRATEGY=deferred`。
+- 拍照/相册识别继续延期：`OCR_LAUNCH_STRATEGY=deferred`。现有 DeepSeek `deepseek-v4-flash` 已验证不支持 `image_url`，不能作为拍照识别服务。
 
 ## 仍需配置的生产环境变量
 
@@ -66,13 +66,14 @@ AI_PROVIDER=production-configured
 AI_API_BASE=https://api.deepseek.com
 AI_API_KEY=<production-ai-key>
 AI_MODEL=deepseek-v4-flash
-OCR_API_URL=<production-recognition-endpoint>
+OCR_LAUNCH_STRATEGY=deferred
+# OCR_API_URL=<production-recognition-endpoint> # 仅 OCR_LAUNCH_STRATEGY=production 时需要
 BLOB_READ_WRITE_TOKEN=<vercel-blob-read-write-token>
 VERCEL_ALERTS_ENABLED=true
 # 可选：如果接入 Sentry，也可以继续设置 SENTRY_DSN=<sentry-dsn>
 ```
 
-生产数据库、Blob、监控、管理员密钥、学生会话密钥、DeepSeek AI 已配置到 Vercel Production。`ENABLE_VERCEL_AUTODEPLOY=true` 暂时不要开启，等 OCR 接入并且 `/api/ready` 返回 200 后再打开。
+生产数据库、Blob、监控、管理员密钥、学生会话密钥、DeepSeek AI 已配置到 Vercel Production。`ENABLE_VERCEL_AUTODEPLOY=true` 暂时不要开启，等支付和 OCR 延期口径的 `/api/ready`、`preflight:production`、`smoke:production` 全部通过后再打开。
 
 部署 URL 确认后，还要补：
 
@@ -89,17 +90,18 @@ CORS_ALLOW_ORIGIN=https://<production-domain>
 - 不要把 `.env.deepseek.local` 上传到 Vercel 或提交到 Git。
 - 不要用 `.env.production.example` 的占位值冒充生产配置。
 - 不要在正式生产设置 `ALLOW_BLOCKED_PRODUCTION_START=true`。
-- 不要在缺 PostgreSQL、OCR、对象存储或监控时把商业上线状态改成 Go。
+- 不要在缺 PostgreSQL、对象存储或监控时把商业上线状态改成 Go。
+- 不要用 mock OCR 或不支持图片的文本模型冒充拍照识别；如果本轮不做，必须设置 `OCR_LAUNCH_STRATEGY=deferred` 并隐藏入口。
 
 ## 剩余资源接入建议
 
 推荐优先接：
 
 ```bash
-# 1. OCR：配置可接收图片识别请求的正式视觉/识别接口。
-npx vercel env add OCR_API_URL production
+# 1. 本轮 OCR 延期：生产环境隐藏拍照/相册识别入口。
+npx vercel env add OCR_LAUNCH_STRATEGY production --value deferred --yes --force --no-sensitive
 
-# 2. OCR 接入后，打开 Git 自动部署。
+# 2. 所有 gate 通过后，打开 Git 自动部署。
 npx vercel env add ENABLE_VERCEL_AUTODEPLOY production --value true --yes --force
 ```
 
@@ -129,3 +131,4 @@ npm --prefix backend run smoke:production
 - `/api/ready` 返回 200。
 - `smoke:production` 全部通过。
 - 支付延期模式下，学生端不显示积分充值、会员购买或模拟支付成功入口。
+- OCR 延期模式下，学生端不显示拍照/相册识别入口，`/api/recognition/config` 返回 `visible=false`。

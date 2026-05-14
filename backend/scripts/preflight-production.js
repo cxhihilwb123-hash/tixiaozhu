@@ -173,9 +173,17 @@ await check('AI service configuration', async () => {
   })
 })
 
-await check('OCR service configuration', async () => (
-  pingUrl('OCR_API_URL', requireRealEnv('OCR_API_URL'))
-))
+await check('OCR launch strategy', async () => {
+  const explicitStrategy = String(process.env.OCR_LAUNCH_STRATEGY || process.env.RECOGNITION_LAUNCH_STRATEGY || '').trim()
+  const strategy = explicitStrategy || (hasValue(process.env.OCR_API_URL) ? 'production' : 'deferred')
+  if (!['production', 'deferred'].includes(strategy)) {
+    throw new Error('OCR_LAUNCH_STRATEGY must be production or deferred')
+  }
+  if (strategy === 'deferred') {
+    return { strategy, configured: hasValue(process.env.OCR_API_URL), launchScope: 'manual_input_only' }
+  }
+  return { strategy, ...(await pingUrl('OCR_API_URL', requireRealEnv('OCR_API_URL'))) }
+})
 
 await check('object storage configuration', async () => {
   if (hasValue(process.env.BLOB_READ_WRITE_TOKEN)) {

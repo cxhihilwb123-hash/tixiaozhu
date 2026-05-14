@@ -2,14 +2,15 @@
 
 更新时间：2026-04-28 23:35 CST
 
-补充更新：2026-05-11 CST
+补充更新：2026-05-14 CST
 
 - 学生端已按手机 / 平板 / 电脑做响应式改造，后台继续保持电脑端管理后台定位。
-- 商业上线修复进入“支付延期、非支付 P0 清理”阶段。
+- 商业上线修复进入“支付和拍照识别延期、本轮可发布范围收口”阶段。
 - 新增支付延期上线策略：`PAYMENT_LAUNCH_STRATEGY=deferred`。本轮不接正式支付，但生产环境必须关闭前台支付入口，不能暴露测试支付或模拟支付确认。
-- 商业上线审计现在会把正式支付列为 `deferredItems`，继续阻塞数据库、默认管理员、默认密钥、学生强认证、AI/OCR、对象存储、监控和正式域名等非支付上线项。
+- 新增拍照识别延期上线策略：`OCR_LAUNCH_STRATEGY=deferred`。本轮不接正式 OCR/视觉识别，生产环境必须隐藏拍照/相册识别入口，保留手动输入、AI 批改、题库、错题和后台运营链路。
+- 商业上线审计现在会把正式支付和拍照识别列为 `deferredItems`，继续阻塞数据库、默认管理员、默认密钥、学生强认证、AI、对象存储、监控和正式域名等本轮上线项。
 - 后端生产 CORS 已改为学生端和后台域名白名单动态放行，避免后台独立域名上线后被生产 CORS 拦截。
-- 新增生产预检脚本：`npm --prefix backend run preflight:production`，用于上线前真实检查商业审计、PostgreSQL、强认证、支付延期、AI/OCR、对象存储和监控配置。
+- 新增生产预检脚本：`npm --prefix backend run preflight:production`，用于上线前真实检查商业审计、PostgreSQL、强认证、支付延期、OCR 延期、AI、对象存储和监控配置。
 - 生产预检现在会拒绝占位环境变量，包括 `replace-with-*`、`example.com`、`changeme`、`placeholder`、`dummy`、`fake`，避免示例配置伪装成正式配置。
 - PostgreSQL 接入已从“代码支持”推进到可执行链路：新增本地 Postgres 启停、文件快照导出、导入 Postgres、从 Postgres 反向导出验证命令；本地容器已验证 `252` 题包、`6912` 题、`108` 知识点和 `5` 用户可写入并从 PostgreSQL 读取；生产模式后端使用 PostgreSQL 数据层启动时 `/api/ready` 返回 200，`dataLayer=postgres`，商业闸门为 `launch_ready`。
 - DeepSeek AI 出题服务已配置并验证：新增 `npm run verify:ai`，本地 `.env.deepseek.local` 使用 `AI_API_BASE=https://api.deepseek.com` 和 `AI_MODEL=deepseek-v4-flash`；真实调用后台 `/api/ai/generate` 已返回完整题目，不再是 mock 生成。
@@ -998,8 +999,8 @@ PATCH /api/wrong-questions/:id
 - 订单列表、支付流水、用户列表、积分流水、退款和商业上线审计接口收口到管理员 token
 - 直接创建已支付订单只允许测试支付模式；生产支付模式必须走支付会话与支付回调，避免绕过真实支付
 - 系统设置、AI 出题和 AI 生成历史接口收口到管理员 token
-- 生产环境缺少 `AI_API_KEY` / `AI_API_BASE` / `AI_MODEL` 或 `OCR_API_URL` 时，AI 出题和拍题识别会返回服务未配置，不再用 mock 结果伪装正式能力
-- 新增 `.env.production.example`，把数据库、管理员、学生会话、支付、AI/OCR、对象存储、监控和正式域名配置固化为上线环境样板
+- 生产环境缺少 `AI_API_KEY` / `AI_API_BASE` / `AI_MODEL` 时，AI 出题会返回服务未配置；`OCR_LAUNCH_STRATEGY=deferred` 时拍题识别明确延期并隐藏入口，不再用 mock 结果伪装正式能力
+- 新增 `.env.production.example`，把数据库、管理员、学生会话、支付延期、OCR 延期、AI、对象存储、监控和正式域名配置固化为上线环境样板
 - 新增 PostgreSQL 数据层：`TIXIAOZHU_DATA_LAYER=postgres` + `DATABASE_URL` 时，业务主数据会保存到 PostgreSQL JSONB 快照表
 - 新增生产启动闸门：`TIXIAOZHU_ENV=production` 且商业审计未达到 `launch_ready` 时拒绝启动，隔离验证才允许 `ALLOW_BLOCKED_PRODUCTION_START=true`
 - 新增数据迁移脚本：`store:export` 可导出当前快照，`store:import` 可把快照写入当前数据层，用于本地 JSON 到 PostgreSQL 的上线迁移
@@ -1010,4 +1011,4 @@ PATCH /api/wrong-questions/:id
 - 学生端账号入口：已建立
 - 支付回调验签与幂等：已建立
 - 支付旁路与敏感运营接口：已加固
-- 商业上线：仍阻塞，主要剩余生产数据库、真实商户参数、AI/OCR、对象存储、监控和正式域名
+- 商业上线：支付和拍照识别按延期项处理后，主要看生产数据库、AI、对象存储、监控、正式域名和线上 smoke gate

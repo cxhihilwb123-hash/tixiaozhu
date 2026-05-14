@@ -8,14 +8,15 @@
 
 ## 本轮上线策略
 
-支付暂不纳入本轮修复范围，但生产环境也不能暴露测试支付。
+支付和拍照识别暂不纳入本轮修复范围，但生产环境也不能暴露测试支付或 mock 识别。
 
 当前采用“双轨闸门”：
 
-- 非支付商业上线：数据库、账号、安全、AI/OCR、对象存储、监控、正式域名必须满足上线标准。
+- 本轮商业上线：数据库、账号、安全、AI、对象存储、监控、正式域名必须满足上线标准。
 - 支付商业化：标记为延期项，设置 `PAYMENT_LAUNCH_STRATEGY=deferred`，并保持 `paymentFeatureVisible=false`。
+- 拍照识别：标记为延期项，设置 `OCR_LAUNCH_STRATEGY=deferred`，并隐藏生产环境拍照/相册识别入口。
 
-这意味着本轮可以先发布非支付版本或人工运营版本，但不能让 `testpay://`、模拟确认、默认账号、匿名学习数据进入生产。
+这意味着本轮可以先发布非支付、手动输入版本或人工运营版本，但不能让 `testpay://`、模拟确认、mock OCR、默认账号、匿名学习数据进入生产。
 
 上线前必须显式配置：
 
@@ -34,7 +35,7 @@ REQUIRE_STUDENT_AUTH=true
 AI_API_BASE=...
 AI_API_KEY=...
 AI_MODEL=...
-OCR_API_URL=...
+OCR_LAUNCH_STRATEGY=deferred
 OBJECT_STORAGE_BUCKET=...
 SENTRY_DSN=... # 或 LOG_DRAIN_URL / OBSERVABILITY_ENDPOINT
 ```
@@ -48,7 +49,7 @@ npm --prefix backend run audit:commercial-launch
 npm run build
 ```
 
-当支付延期策略生效时，`audit:commercial-launch` 可以返回 `launch_ready`，但会保留 `deferredItems` 记录正式支付延期；如果生产环境误开启支付入口，审计仍会阻塞上线。
+当支付和 OCR 延期策略生效时，`audit:commercial-launch` 可以返回 `launch_ready`，但会保留 `deferredItems` 记录正式支付和拍照识别延期；如果生产环境误开启支付入口或用 mock OCR 冒充正式识别，审计仍会阻塞上线。
 
 已经具备：
 
@@ -65,7 +66,8 @@ npm run build
 - 管理员 token 使用本地默认 secret 作为兜底。
 - 学生端没有真实账号体系与登录态。
 - 支付仍是测试支付模式，没有真实支付网关、回调验签和退款审计。
-- AI/OCR 仍是 mock-compatible 口径。
+- AI 仍是 mock-compatible 口径。
+- OCR 如果纳入本轮上线，仍缺正式识别服务；本轮采用 `OCR_LAUNCH_STRATEGY=deferred` 延期。
 - 上传文件、PDF、日志、监控没有接入生产对象存储和告警系统。
 
 ## P0 上线阻塞
@@ -77,7 +79,7 @@ npm run build
 - 新增 `audit:commercial-launch`。
 - 新增 `GET /api/commercial-launch-readiness`。
 - 审计必须能明确区分：内测可用、上线阻塞、上线可发布。
-- 默认管理员、测试支付、本地 JSON、mock AI/OCR、缺真实账号、缺对象存储、缺监控都必须被识别。
+- 默认管理员、测试支付、本地 JSON、mock AI/OCR、缺真实账号、缺对象存储、缺监控都必须被识别；其中支付和 OCR 允许以明确延期项放行，但不能暴露给真实用户。
 
 2. 生产安全基线
 

@@ -28,6 +28,7 @@ const OCR_API_URL = process.env.OCR_API_URL || ''
 const IS_PRODUCTION_RUNTIME = process.env.NODE_ENV === 'production' || process.env.TIXIAOZHU_ENV === 'production'
 const REQUIRE_STUDENT_AUTH = IS_PRODUCTION_RUNTIME || process.env.REQUIRE_STUDENT_AUTH === 'true'
 const PAYMENT_LAUNCH_STRATEGY = process.env.PAYMENT_LAUNCH_STRATEGY || process.env.TIXIAOZHU_PAYMENT_STRATEGY || ''
+const OCR_LAUNCH_STRATEGY = process.env.OCR_LAUNCH_STRATEGY || process.env.RECOGNITION_LAUNCH_STRATEGY || ''
 const CORS_ALLOW_ORIGIN = process.env.CORS_ALLOW_ORIGIN || (IS_PRODUCTION_RUNTIME ? `${FRONTEND_URL},${ADMIN_URL}` : '*')
 const ADMIN_LOGIN_MAX_ATTEMPTS = Number(process.env.ADMIN_LOGIN_MAX_ATTEMPTS || 8)
 const ADMIN_LOGIN_WINDOW_MS = Number(process.env.ADMIN_LOGIN_WINDOW_MS || 10 * 60 * 1000)
@@ -53,6 +54,13 @@ const isPaymentLaunchDeferred = () => {
   if (strategy === 'deferred') return true
   if (strategy === 'production') return false
   return store.settings.paymentFeatureVisible !== true
+}
+
+const isOcrLaunchDeferred = () => {
+  const strategy = String(OCR_LAUNCH_STRATEGY || '').trim()
+  if (strategy === 'deferred') return true
+  if (strategy === 'production') return false
+  return IS_PRODUCTION_RUNTIME && !hasConfigValue(OCR_API_URL)
 }
 
 const requirePaymentLaunchAvailable = () => {
@@ -1480,6 +1488,12 @@ const generateQuestionsWithProvider = async (config) => {
 }
 
 const recognizeUploadWithProvider = async (body) => {
+  if (IS_PRODUCTION_RUNTIME && isOcrLaunchDeferred()) {
+    const error = new Error('Photo recognition is deferred for this production release')
+    error.status = 503
+    throw error
+  }
+
   if (!hasConfigValue(OCR_API_URL)) {
     if (IS_PRODUCTION_RUNTIME) {
       const error = new Error('Production OCR service is not configured')
@@ -3553,6 +3567,14 @@ export const requestHandler = async (req, res) => {
         mode: store.settings.paymentMode,
         paymentLaunchStrategy: paymentDeferred ? 'deferred' : 'production',
         providers: store.settings.paymentProviders,
+      }))
+    }
+    if (path === '/api/recognition/config' && req.method === 'GET') {
+      const ocrDeferred = IS_PRODUCTION_RUNTIME && isOcrLaunchDeferred()
+      return json(res, 200, ok({
+        visible: !ocrDeferred,
+        configured: hasConfigValue(OCR_API_URL),
+        recognitionLaunchStrategy: ocrDeferred ? 'deferred' : 'production',
       }))
     }
     if (path === '/api/membership-plans') {
