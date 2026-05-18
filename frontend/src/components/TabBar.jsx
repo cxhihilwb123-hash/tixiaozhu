@@ -22,8 +22,9 @@ const TabBar = ({ activeTab, onTabChange }) => {
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
+              data-testid={`student-tab-${tab.id}`}
               className="tab-item relative flex h-full w-[64px] flex-col items-center justify-center sm:w-[84px] lg:w-[104px]"
-              aria-label={tab.label}
+              aria-label={`切换到${tab.label}页面`}
             >
               <motion.div
                 className={`relative flex h-9 w-12 items-center justify-center rounded-full ${

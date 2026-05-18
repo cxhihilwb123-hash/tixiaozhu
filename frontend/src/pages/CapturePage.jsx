@@ -41,6 +41,7 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
   const [mode, setMode] = useState('select')
   const [userAnswer, setUserAnswer] = useState('')
   const [uploadError, setUploadError] = useState('')
+  const [savedQuestion, setSavedQuestion] = useState(null)
   const [recognitionConfig, setRecognitionConfig] = useState({
     visible: !import.meta.env.PROD,
     recognitionLaunchStrategy: import.meta.env.PROD ? 'deferred' : 'development',
@@ -63,6 +64,7 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
   }, [])
 
   const setFlowMode = (nextMode) => {
+    if (nextMode !== 'select') setSavedQuestion(null)
     setMode(nextMode)
     onFlowStateChange?.(nextMode !== 'select')
   }
@@ -206,15 +208,7 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
   const handleComplete = async () => {
     if (currentUpload.question) {
       const correction = aiCorrection.result
-      const saved = await apiPost('/uploaded-questions', {
-        user: studentProfile.nickname || '同学',
-        sourceType: currentUpload.image ? 'photo' : 'manual',
-        recognizedText: currentUpload.recognizedText,
-        userAnswer: userAnswer.trim(),
-        isCorrect: correction?.isCorrect,
-        correctionStatus: correction?.isCorrect ? 'correct' : correction?.isCorrect === false ? 'wrong' : 'ungraded',
-        question: currentUpload.question,
-      }, () => ({
+      const fallbackQuestion = {
         ...currentUpload.question,
         id: `local-upl-${Date.now()}`,
         user: studentProfile.nickname || '同学',
@@ -224,16 +218,27 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
         userAnswer: userAnswer.trim(),
         correctionStatus: correction?.isCorrect ? 'correct' : correction?.isCorrect === false ? 'wrong' : 'ungraded',
         uploadedAt: Date.now(),
-      }))
-      addToUploadedQuestions(saved, {
+      }
+      const saved = await apiPost('/uploaded-questions', {
+        user: studentProfile.nickname || '同学',
+        sourceType: currentUpload.image ? 'photo' : 'manual',
         recognizedText: currentUpload.recognizedText,
         userAnswer: userAnswer.trim(),
-        correctionStatus: saved.correctionStatus,
-        sourceType: saved.sourceType,
-        uploadedAt: saved.uploadedAt,
+        isCorrect: correction?.isCorrect,
+        correctionStatus: correction?.isCorrect ? 'correct' : correction?.isCorrect === false ? 'wrong' : 'ungraded',
+        question: currentUpload.question,
+      }, () => fallbackQuestion)
+      const stored = addToUploadedQuestions(saved || fallbackQuestion, {
+        recognizedText: currentUpload.recognizedText,
+        userAnswer: userAnswer.trim(),
+        correctionStatus: (saved || fallbackQuestion).correctionStatus,
+        sourceType: (saved || fallbackQuestion).sourceType,
+        uploadedAt: (saved || fallbackQuestion).uploadedAt,
       })
+      setSavedQuestion(stored)
     }
     resetFlow()
+    if (currentUpload.question) onOpenPracticeCenter?.('uploads')
   }
 
   const renderShell = (children) => (
@@ -316,6 +321,19 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
       {uploadError && (
         <div className="mt-4 rounded-card bg-red-50 p-4 text-subhead font-semibold text-red-700" role="alert">
           {uploadError}
+        </div>
+      )}
+
+      {savedQuestion && (
+        <div className="mt-4 rounded-card border border-green-200 bg-green-50 p-4" role="status" aria-live="polite">
+          <div className="mb-1 text-title-3 text-green-800">已存入拍题本</div>
+          <div className="line-clamp-2 text-subhead text-green-900">{savedQuestion.content || savedQuestion.recognizedText || '刚保存的题目'}</div>
+          <button
+            onClick={() => onOpenPracticeCenter?.('uploads')}
+            className="mt-3 text-caption-1 font-semibold text-green-800"
+          >
+            去拍题本查看
+          </button>
         </div>
       )}
 
@@ -460,7 +478,9 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
       <>
         <header className="mb-5">
           <div className="page-kicker mb-2">批改结果</div>
-          <h1 className="text-display text-neutral-900">{isCorrect ? '答案正确' : '需要订正'}</h1>
+          <h1 className="text-display text-neutral-900" role="status" aria-live="polite">
+            {isCorrect ? '答案正确' : '需要订正'}
+          </h1>
         </header>
 
         <Card staticCard className={`mb-4 bg-white ${isCorrect ? 'border-green-200' : 'border-red-200'}`}>
@@ -481,7 +501,11 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
               <div className="mt-1 text-title-2 text-green-700">{result?.correctAnswer}</div>
             </div>
           )}
-          <div className="text-subhead text-neutral-700">{result?.feedback || '正在生成批改结果...'}</div>
+          <div className="text-subhead text-neutral-700">
+            {result?.feedback
+              ? result.feedback.replace(/^答案需要订正[，,。]?/, '订正建议：')
+              : '正在生成批改结果...'}
+          </div>
         </Card>
 
         <div className="grid gap-3">
@@ -495,7 +519,7 @@ const CapturePage = ({ onFlowStateChange, onOpenPracticeCenter }) => {
               加入错题集
             </Button>
           )}
-          <Button fullWidth onClick={handleComplete}>完成并存入拍题本</Button>
+          <Button fullWidth onClick={handleComplete}>完成并查看拍题本</Button>
         </div>
       </>
     )

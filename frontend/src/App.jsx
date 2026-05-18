@@ -26,6 +26,7 @@ function App() {
   const [showCompletion, setShowCompletion] = useState(false)
   const [completionResult, setCompletionResult] = useState(null)
   const [captureFlowActive, setCaptureFlowActive] = useState(false)
+  const [practiceInitialMode, setPracticeInitialMode] = useState('platform')
   
   // 检查是否首次进入
   useEffect(() => {
@@ -110,6 +111,11 @@ function App() {
   // 打开会员页面
   const handleOpenMembership = () => {
     setShowMembership(true)
+  }
+
+  const handleOpenPracticeCenter = (mode = 'platform') => {
+    setPracticeInitialMode(mode)
+    setActiveTab('practice')
   }
   
   // 渲染练习完成页面
@@ -249,16 +255,17 @@ function App() {
             onContinuePractice={handleContinuePractice}
             onStartWrongPractice={handleStartWrongPractice}
             onOpenCapture={() => setActiveTab('capture')}
-            onOpenPracticeCenter={() => setActiveTab('practice')}
+            onOpenPracticeCenter={handleOpenPracticeCenter}
           />
         )
       case 'capture':
-        return <CapturePage onFlowStateChange={setCaptureFlowActive} onOpenPracticeCenter={() => setActiveTab('practice')} />
+        return <CapturePage onFlowStateChange={setCaptureFlowActive} onOpenPracticeCenter={handleOpenPracticeCenter} />
       case 'practice':
         return (
           <PracticeCenterPage
             onStartPractice={handleStartPractice}
             onOpenQuestionStore={() => setShowQuestionStore(true)}
+            initialLibraryMode={practiceInitialMode}
           />
         )
       case 'wrong':
@@ -276,7 +283,7 @@ function App() {
             onContinuePractice={handleContinuePractice}
             onStartWrongPractice={handleStartWrongPractice}
             onOpenCapture={() => setActiveTab('capture')}
-            onOpenPracticeCenter={() => setActiveTab('practice')}
+            onOpenPracticeCenter={handleOpenPracticeCenter}
           />
         )
     }
@@ -309,6 +316,7 @@ function App() {
                 activeTab={activeTab}
                 onTabChange={(tab) => {
                   setCaptureFlowActive(false)
+                  if (tab === 'practice') setPracticeInitialMode('platform')
                   setActiveTab(tab)
                 }}
               />

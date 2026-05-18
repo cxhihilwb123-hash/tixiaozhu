@@ -137,7 +137,7 @@ const AdminLayout = ({ children, activeMenu, onMenuChange, adminProfile, onLogou
         </header>
         
         {/* Content */}
-        <main className="flex-1 p-6 overflow-y-auto">
+        <main className="flex-1 p-6 overflow-y-auto" aria-label="后台主内容" data-testid="admin-main-content">
           {children}
         </main>
       </div>

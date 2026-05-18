@@ -218,6 +218,7 @@ const HomePage = ({ onStartPractice, onContinuePractice, onStartWrongPractice, o
                   key={item.title}
                   animate={false}
                   onClick={item.onClick}
+                  aria-label={`快捷入口：${item.title}`}
                   className="min-h-[142px] bg-white"
                 >
                   <div className={`mb-5 flex h-11 w-11 items-center justify-center rounded-full ${item.tone}`}>

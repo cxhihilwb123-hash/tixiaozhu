@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 
@@ -10,21 +11,64 @@ const Modal = ({
   showCloseButton = true,
   fullScreen = false,
 }) => {
+  const dialogRef = useRef(null)
+
   useEffect(() => {
     if (!isOpen) return undefined
     const previousOverflow = document.body.style.overflow
+    const appRoot = document.getElementById('root')
+    const previousRootInert = appRoot?.inert
+    const previousRootAriaHidden = appRoot?.getAttribute('aria-hidden')
     const handleKeyDown = (event) => {
-      if (event.key === 'Escape') onClose?.()
+      if (event.key === 'Escape') {
+        onClose?.()
+        return
+      }
+      if (event.key !== 'Tab') return
+
+      const focusable = dialogRef.current?.querySelectorAll(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+      const items = Array.from(focusable || []).filter(item => item.offsetParent !== null)
+      if (!items.length) return
+
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
     document.body.style.overflow = 'hidden'
+    if (appRoot) {
+      appRoot.inert = true
+      appRoot.setAttribute('aria-hidden', 'true')
+    }
     window.addEventListener('keydown', handleKeyDown)
+    window.requestAnimationFrame(() => {
+      const firstFocusable = dialogRef.current?.querySelector(
+        'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+      )
+      firstFocusable?.focus()
+    })
     return () => {
       document.body.style.overflow = previousOverflow
+      if (appRoot) {
+        appRoot.inert = Boolean(previousRootInert)
+        if (previousRootAriaHidden === null) {
+          appRoot.removeAttribute('aria-hidden')
+        } else {
+          appRoot.setAttribute('aria-hidden', previousRootAriaHidden)
+        }
+      }
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [isOpen, onClose])
 
-  return (
+  const modal = (
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -47,6 +91,7 @@ const Modal = ({
             role="dialog"
             aria-modal="true"
             aria-label={title || '弹窗'}
+            ref={dialogRef}
             onClick={(event) => event.stopPropagation()}
             className={`modal-content absolute ${
               fullScreen 
@@ -83,6 +128,9 @@ const Modal = ({
       )}
     </AnimatePresence>
   )
+
+  if (typeof document === 'undefined') return null
+  return createPortal(modal, document.body)
 }
 
 export default Modal

@@ -64,7 +64,7 @@ const normalizeQuestion = (question) => ({
   answer: question.answer || question.correctAnswer,
 })
 
-const PracticeCenterPage = ({ onStartPractice, onOpenQuestionStore }) => {
+const PracticeCenterPage = ({ onStartPractice, onOpenQuestionStore, initialLibraryMode = 'platform' }) => {
   const { isLoggedIn, studentProfile } = useUserStore()
   const {
     uploadedQuestions,
@@ -90,6 +90,14 @@ const PracticeCenterPage = ({ onStartPractice, onOpenQuestionStore }) => {
   const [detailPack, setDetailPack] = useState(null)
   const [detailQuestions, setDetailQuestions] = useState([])
   const [loadingDetailPackId, setLoadingDetailPackId] = useState(null)
+
+  useEffect(() => {
+    if (!['platform', 'uploads', 'wrong'].includes(initialLibraryMode)) return
+    setLibraryMode(initialLibraryMode)
+    setSubject('all')
+    setSearch('')
+    setSelectedUploadIds([])
+  }, [initialLibraryMode])
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -276,6 +284,8 @@ const PracticeCenterPage = ({ onStartPractice, onOpenQuestionStore }) => {
             onClick={() => {
               setLibraryMode(item.id)
               setSelectedUploadIds([])
+              setSubject('all')
+              setSearch('')
             }}
             className={`surface-line min-h-[72px] rounded-card p-3 text-left ${
               libraryMode === item.id ? 'border-primary-600 bg-primary-50 text-primary-900' : 'bg-white text-neutral-700'
@@ -359,8 +369,12 @@ const PracticeCenterPage = ({ onStartPractice, onOpenQuestionStore }) => {
 
       {filteredUploadedQuestions.length === 0 && (
         <div className="surface-line rounded-card bg-white p-8 text-center">
-          <div className="mb-2 text-title-2 text-neutral-900">拍题本还没有题</div>
-          <div className="text-subhead text-neutral-500">手动输入并完成后，会沉淀到这里。</div>
+          <div className="mb-2 text-title-2 text-neutral-900">
+            {uploadedQuestions.length > 0 ? '当前筛选下没有拍题' : '拍题本还没有题'}
+          </div>
+          <div className="text-subhead text-neutral-500">
+            {uploadedQuestions.length > 0 ? '已清空筛选后可以看到全部拍题，或换个关键词再试。' : '手动输入并完成后，会沉淀到这里。'}
+          </div>
         </div>
       )}
     </section>
